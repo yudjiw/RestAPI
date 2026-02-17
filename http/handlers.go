@@ -206,32 +206,38 @@ func (h *HTTPHandlers) HandleCompleteTask(w http.ResponseWriter, r *http.Request
 
 	title := mux.Vars(r)["title"]
 
+	var (
+		changedTask todo.Task
+		err         error
+	)
+
 	if completeDTO.Complete {
-		if err := h.todoList.CompleteTask(title); err != nil {
-			errDTO := ErrorDTO{
-				Message: err.Error(),
-				Time:    time.Now(),
-			}
-			if errors.Is(err, todo.ErrTaskNotFound) {
-				http.Error(w, errDTO.ToString(), http.StatusNotFound)
-			}
+		changedTask, err = h.todoList.CompleteTask(title)
+	} else {
+		changedTask, err = h.todoList.UncompleteTask(title)
+	}
+
+	if err != nil {
+		errDTO := ErrorDTO{
+			Message: err.Error(),
+			Time:    time.Now(),
+		}
+
+		if errors.Is(err, todo.ErrTaskNotFound) {
+			http.Error(w, errDTO.ToString(), http.StatusNotFound)
+		} else {
 			http.Error(w, errDTO.ToString(), http.StatusInternalServerError)
 		}
 		return
-	} else {
-		if err := h.todoList.UncompleteTask(title); err != nil {
-			errDTO := ErrorDTO{
-				Message: err.Error(),
-				Time:    time.Now(),
-			}
 
-			if errors.Is(err, todo.ErrTaskNotFound) {
-				http.Error(w, errDTO.ToString(), http.StatusNotFound)
-			} else {
-				http.Error(w, errDTO.ToString(), http.StatusInternalServerError)
-			}
-			return
-		}
+	}
+	b, err := json.MarshalIndent(changedTask, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	if _, err := w.Write(b); err != nil {
+		fmt.Println("failed to write http response", err)
+		return
 	}
 }
 
